@@ -43,31 +43,29 @@ class LikePlugin extends Gdn_Plugin {
             ->set();
     }
 
-    public function discussionCOntroller_render_before($sender) {
-        $this->init();
-    }
-
     /**
+     * Insert some CSS, init important variables only once per page call.
      *
      * @return void.
      */
     public function discussionController_beforeDiscussionDisplay_handler($sender, $args) {
         echo '<style>.Reactions a.HasCount{display: inline-block}.Reactions .Count{border-radius:3px;margin-right:4px;vertical-align:top}</style>';
 
+        $this->init();
         // Prefetch all posts that I like.
         $px = Gdn::database()->DatabasePrefix;
         $userID = Gdn::session()->UserID;
         $sql = <<< EOT
-SELECT CommentID
-FROM {$px}UserComment
-WHERE CommentID IN (
-  SELECT CommentID
-  FROM {$px}Comment
-  WHERE DiscussionID = {$args['Discussion']->DiscussionID}
-)
-AND UserID = {$userID}
-AND RJ_Like = true
-EOT;
+            SELECT CommentID
+            FROM {$px}UserComment
+            WHERE CommentID IN (
+              SELECT CommentID
+              FROM {$px}Comment
+              WHERE DiscussionID = {$args['Discussion']->DiscussionID}
+            )
+            AND UserID = {$userID}
+            AND RJ_Like = true
+        EOT;
         $likedComments = Gdn::sql()->query($sql)->resultArray();
         $this->iLiked = [
             'Discussion' => [$args['Discussion']->DiscussionID],
@@ -82,7 +80,7 @@ EOT;
      */
     public function init() {
         $this->likeText = Gdn::translate('Like');
-        $this->unlikeText = Gdn::translate('You like that');
+        $this->unlikeText = Gdn::translate('Unlike', 'You like that');
         $this->pluginUrl = Gdn::request()->url('/plugin/rjlike');
         $this->canAdd = Gdn::session()->checkPermission('Plugins.RJLike.Add');
         $this->canView = Gdn::session()->checkPermission('Plugins.RJLike.View');
@@ -199,12 +197,14 @@ EOT;
             $postType.'ID' => $postID
         ])->firstRow(DATASET_TYPE_ARRAY);
 
+        $newStatus = true;
+
         if (!$userData) {
             // No row for that user/post combination, create one!
             $model->insert([
                 'UserID' => $userID,
                 $postType.'ID' => $postID,
-                'RJ_Like' => true
+                'RJ_Like' => $newStatus
             ]);
         } else {
             // Toggle like status.
@@ -222,7 +222,7 @@ EOT;
         $likeCount = $model->getCount([$postType.'ID' => $postID, 'RJ_Like' => true]);
         $sender->jsonTarget(
             "#{$postType}_{$postID} a.ReactButton-Like",
-            $this->getButton($postType, $postID, $likeCount, $newStatus),
+            $this->getButton($postType, $postID, $likeCount, (bool)$newStatus),
             'ReplaceWith'
         );
         $sender->render('Blank', 'Utility', 'Dashboard');
