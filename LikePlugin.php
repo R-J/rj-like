@@ -55,20 +55,21 @@ class LikePlugin extends Gdn_Plugin {
         // Prefetch all posts that I like.
         $px = Gdn::database()->DatabasePrefix;
         $userID = Gdn::session()->UserID;
+        $discussion = $args['Discussion'];
         $sql = <<< EOT
             SELECT CommentID
             FROM {$px}UserComment
             WHERE CommentID IN (
               SELECT CommentID
               FROM {$px}Comment
-              WHERE DiscussionID = {$args['Discussion']->DiscussionID}
+              WHERE DiscussionID = {$discussion->DiscussionID}
             )
             AND UserID = {$userID}
             AND RJ_Like = true
         EOT;
         $likedComments = Gdn::sql()->query($sql)->resultArray();
         $this->iLiked = [
-            'Discussion' => [$args['Discussion']->DiscussionID],
+            'Discussion' => [$discussion->DiscussionID],
             'Comment' => array_column($likedComments, 'CommentID')
         ];
     }
@@ -102,13 +103,16 @@ class LikePlugin extends Gdn_Plugin {
         // Only works for Comments and Discussions.
         if (array_key_exists('Comment', $args)) {
             $postType = 'Comment';
-            $postID = $args['Comment']->CommentID;
-         } elseif (array_key_exists('Discussion', $args)) {
+            $comment = $args['Comment'];
+            $postID = $comment->CommentID;
+        } elseif (array_key_exists('Discussion', $args)) {
             $postType = 'Discussion';
-            $postID = $args['Discussion']->DiscussionID;
+            $discussion = $args['Discussion'];
+            $postID = $discussion->DiscussionID;
         } else {
             return;
         }
+
         $model = new Gdn_Model('User'.$postType);
         $likeCount = $model->getCount([
             $postType.'ID' => $postID,
